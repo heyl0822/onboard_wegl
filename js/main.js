@@ -1,8 +1,18 @@
 var camera, scene, renderer, effect;
 var vrControls;
-var sky, water;
+var sky, planets = new Array();
+var planetsNum = 9;
+var planetsPosition = [new THREE.Vector3(10, 10, 30), new THREE.Vector3(20, 20, 40), new THREE.Vector3(50, 30, 0),
+    new THREE.Vector3(40, 40, 40), new THREE.Vector3(0, -10, 40), new THREE.Vector3(0, -20, 40),
+    new THREE.Vector3(90, -30, 40), new THREE.Vector3(50, -40, 0), new THREE.Vector3(100, -50, 40)];
 var cameraPath;
 var dolly;
+
+var debugMode = true;
+var cameraHelper;
+
+var raycaster = new THREE.Raycaster();
+var center = new THREE.Vector2(0, 0);
 
 var currentTime = null;
 var startTime = null;
@@ -15,6 +25,8 @@ var deltaTime = 1 / 60; // set reasonable starting delta time
 var colorTop = new THREE.Color(0xdc72aa);
 var colorMiddle = new THREE.Color(0xfbdfd3);
 var colorBottom = new THREE.Color(0xdc72aa);
+
+var gui = new dat.GUI();
 
 var isMobile = function () {
     var check = false;
@@ -32,6 +44,15 @@ var getUrlParameter = function (name) {
     var results = regex.exec(location.search);
     return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
 };
+
+function setupGui(){
+    for (var i = 0; i < planetsNum; i++) {
+        var pos = gui.addFolder('Position ' + i.toString());
+        pos.add(planetsPosition[i], 'x', -100, 100);
+        pos.add(planetsPosition[i], 'y', -100, 100);
+        pos.add(planetsPosition[i], 'z', -100, 100);
+    }
+}
 
 function setupSkybox() {
     var geometry = new THREE.SphereGeometry(10000, 64, 32);
@@ -61,11 +82,51 @@ function setupSkybox() {
         depthWrite: false,
         depthTest: false,
         fog: false,
-        map: new THREE.TextureLoader().load('images/bg-3.jpg')
+        map: new THREE.TextureLoader().load('images/bg.jpg')
     });
 
     sky = new THREE.Mesh(geometry, material);
     scene.add(sky);
+}
+
+function setupPlanets() {
+    var geometry = new THREE.SphereGeometry(5, 64, 32);
+    var vertices = geometry.vertices;
+    var faces = geometry.faces;
+
+    for (var i = 0, l = faces.length; i < l; i++) {
+        var face = faces[i];
+        var vertex1 = vertices[face.a];
+        var vertex2 = vertices[face.b];
+        var vertex3 = vertices[face.c];
+
+        var color1 = colorMiddle.clone();
+        color1.lerp(vertex1.y > 0 ? colorTop : colorBottom, Math.abs(vertex1.y) / 6000);
+
+        var color2 = colorMiddle.clone();
+        color2.lerp(vertex2.y > 0 ? colorTop : colorBottom, Math.abs(vertex2.y) / 6000);
+
+        var color3 = colorMiddle.clone();
+        color3.lerp(vertex3.y > 0 ? colorTop : colorBottom, Math.abs(vertex3.y) / 6000);
+
+        face.vertexColors.push(color1, color2, color3);
+    }
+
+    var material = new THREE.MeshPhongMaterial({
+        color: 0x222222, specular: 0x000000, shininess: 30, shading: THREE.FlatShading
+    });
+
+
+    for (var i = 0; i < planetsNum; i++) {
+        var planet = new THREE.Mesh(geometry, material);
+        planet.position.set(0, 0, 0);
+        planets.push(planet);
+        console.log(planets);
+        scene.add(planet);
+    }
+
+    console.log(planets);
+
 }
 
 function setupLights() {
@@ -76,6 +137,29 @@ function setupLights() {
     var hemisphereLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.8);
     hemisphereLight.position.set(-1, 2, 1.5);
     scene.add(hemisphereLight);
+
+    var lights = [];
+    lights[ 0 ] = new THREE.PointLight( 0xffffff, 1, 0 );
+    lights[ 1 ] = new THREE.PointLight( 0xffffff, 1, 0 );
+    lights[ 2 ] = new THREE.PointLight( 0xffffff, 1, 0 );
+
+    lights[ 0 ].position.set( 0, 200, 0 );
+    lights[ 1 ].position.set( 100, 200, 100 );
+    lights[ 2 ].position.set( - 100, - 200, - 100 );
+
+    scene.add( lights[ 0 ] );
+    scene.add( lights[ 1 ] );
+    scene.add( lights[ 2 ] );
+
+}
+
+function setupDebugSetting() {
+    var cameraHelper = new THREE.CameraHelper(camera);
+
+    scene.add(cameraHelper);
+
+    var axisHelper = new THREE.AxisHelper( 5 );
+    scene.add( axisHelper );
 }
 
 function onWindowResize() {
@@ -115,6 +199,22 @@ function animate(time) {
 
     // move sky and water position with camera dolly
     sky.position.copy(dolly.position);
+
+    for (var i = 0; i < planets.length; i++) {
+        planets[i].position.copy(dolly.position);
+        planets[i].position.add(planetsPosition[i]);
+    }
+
+    // update the picking ray with the camera and mouse position
+    raycaster.setFromCamera( center, camera );
+
+    // calculate objects intersecting the picking ray
+    var intersects = raycaster.intersectObjects( planets );
+
+    for ( var i = 0; i < intersects.length; i++ ) {
+        intersects[ i ].object.material.color.set( 0x444444 );
+
+    }
 
     if (vrMode) {
         effect.render(scene, camera);
@@ -191,7 +291,9 @@ function init() {
 
     // Scene elements
     setupSkybox();
+    setupPlanets();
     setupLights();
+    setupGui();
 
     startAnimation();
 
