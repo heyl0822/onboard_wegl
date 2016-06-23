@@ -1,6 +1,6 @@
 var camera, scene, renderer, effect;
 var vrControls;
-var sky, planets = new Array();
+var sky, planets = new Array(), planeMesh;
 var planetsNum = 9;
 var planetsPosition = [new THREE.Vector3(10, 10, 30), new THREE.Vector3(20, 20, 40), new THREE.Vector3(50, 30, 0),
     new THREE.Vector3(40, 40, 40), new THREE.Vector3(0, -10, 40), new THREE.Vector3(0, -20, 40),
@@ -27,6 +27,7 @@ var colorMiddle = new THREE.Color(0xfbdfd3);
 var colorBottom = new THREE.Color(0xdc72aa);
 
 var gui = new dat.GUI();
+var cssRenderer;
 
 var isMobile = function () {
     var check = false;
@@ -53,6 +54,15 @@ function setupGui(){
         pos.add(planetsPosition[i], 'z', -100, 100);
     }
 }
+
+  function createCssRenderer() {
+    var cssRenderer = new THREE.CSS3DRenderer();
+    cssRenderer.setSize(window.innerWidth, window.innerHeight);
+    cssRenderer.domElement.style.position = 'absolute';
+    renderer.domElement.style.zIndex = 0;
+    cssRenderer.domElement.style.top = 0;
+    return cssRenderer;
+  }
 
 function setupSkybox() {
     var geometry = new THREE.SphereGeometry(10000, 64, 32);
@@ -89,6 +99,56 @@ function setupSkybox() {
     scene.add(sky);
 }
 
+  function createPlane(w, h, position, rotation) {
+    var material = new THREE.MeshBasicMaterial({
+      color: 0x000000,
+      opacity: 0.0,
+      side: THREE.DoubleSide
+    });
+    var geometry = new THREE.PlaneGeometry(w, h);
+    var mesh = new THREE.Mesh(geometry, material);
+    mesh.position.x = position.x;
+    mesh.position.y = position.y;
+    mesh.position.z = position.z;
+    mesh.rotation.x = rotation.x;
+    mesh.rotation.y = rotation.y;
+    mesh.rotation.z = rotation.z;
+    return mesh;
+  }
+
+  function createCssObject(w, h, position, rotation, url) {
+    var html = [
+      '<div style="width:' + w + 'px; height:' + h + 'px;">',
+      '<iframe src="' + url + '" width="' + w + '" height="' + h + '">',
+      '</iframe>',
+      '</div>'
+    ].join('\n');
+    var div = document.createElement('div');
+    $(div).html(html);
+    var cssObject = new THREE.CSS3DObject(div);
+    cssObject.position.x = position.x;
+    cssObject.position.y = position.y;
+    cssObject.position.z = position.z;
+    cssObject.rotation.x = rotation.x;
+    cssObject.rotation.y = rotation.y;
+    cssObject.rotation.z = rotation.z;
+    return cssObject;
+  }
+
+  function create3dPage(w, h, position, rotation, url) {
+    planeMesh = createPlane(
+        w, h,
+        position,
+        rotation);
+    scene.add(planeMesh);
+    var cssObject = createCssObject(
+        w, h,
+        position,
+        rotation,
+        url);
+    cssScene.add(cssObject);
+  }
+
 function setupPlanets() {
     var geometry = new THREE.SphereGeometry(5, 64, 32);
     var vertices = geometry.vertices;
@@ -121,11 +181,8 @@ function setupPlanets() {
         var planet = new THREE.Mesh(geometry, material);
         planet.position.set(0, 0, 0);
         planets.push(planet);
-        console.log(planets);
         scene.add(planet);
     }
-
-    console.log(planets);
 
 }
 
@@ -199,6 +256,8 @@ function animate(time) {
 
     // move sky and water position with camera dolly
     sky.position.copy(dolly.position);
+//    planeMesh.position.copy(dolly.position);
+//    planeMesh.position.add(planetsPosition[0]);
 
     for (var i = 0; i < planets.length; i++) {
         planets[i].position.copy(dolly.position);
@@ -220,6 +279,7 @@ function animate(time) {
         effect.render(scene, camera);
     }  else {
         renderer.render(scene, camera);
+		cssRenderer.render(cssScene, camera);
     }
     vrControls.update();
 
@@ -274,10 +334,18 @@ function init() {
     renderer.autoClear = false;
     renderer.setClearColor(0x404040);
     document.body.appendChild(renderer.domElement);
+	
+	
+    cssRenderer = createCssRenderer();
+    //document.body.appendChild(glRenderer.domElement);
+//    document.body.appendChild(cssRenderer.domElement);
+//    cssRenderer.domElement.appendChild(renderer.domElement);
 
     // setup scene
     scene = new THREE.Scene();
     scene.fog = new THREE.Fog(0xcacfde, 0, 10000);
+	
+	cssScene = new THREE.Scene();
 
     // setup dolly that camera rides on.
     dolly = new THREE.Group();
@@ -288,13 +356,21 @@ function init() {
     camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 20000);
     camera.position.z = 0.0001;
     dolly.add(camera);
+	
 
     // Scene elements
     setupSkybox();
-    setupPlanets();
+//    setupScreen();
+    // setupPlanets();
     setupLights();
-    setupGui();
+    // setupGui();
 
+	    create3dPage(
+      10000, 10000,
+      new THREE.Vector3(-1050, 0, 400),
+      new THREE.Vector3(0, 45 * Math.PI / 180, 0),
+      'http://yanlinghe.com/');
+	
     startAnimation();
 
     // effect and controls for VR
